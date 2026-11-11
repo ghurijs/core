@@ -211,3 +211,12 @@ describe('include and namespaces', () => {
     expect(() => reverse('x')).toThrow(ImproperlyConfigured)
   })
 })
+
+describe('edge cases', () => {
+  it('escapes literal dots and supports <path:> before other segments', async () => {
+    const h = honoFor([path('robots.txt', (c) => c.text('r')), path('f/<path:p>/edit/', echo('edit'))])
+    expect((await h.request('/robots.txt')).status).toBe(200)
+    expect((await h.request('/robotsXtxt')).status).toBe(404)
+    expect((await (await h.request('/f/a/b/edit/')).json()).kwargs).toEqual({ p: 'a/b' })
+  })
+})
