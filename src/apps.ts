@@ -1,3 +1,4 @@
+import { type CommandClass, commandRegistry } from './commands'
 import { AppRegistryNotReady, ImproperlyConfigured } from './errors'
 
 export type CommandClassLike = new () => {
@@ -76,6 +77,9 @@ export class AppRegistry {
       }
       this.configs.set(label, config as AppConfig)
       if (!this.models.has(label)) this.models.set(label, new Map())
+      for (const [name, cls] of Object.entries((config as AppConfig).commands ?? {})) {
+        commandRegistry.register(name, cls as unknown as CommandClass)
+      }
     }
     for (const hook of this.hooks) await hook(this)
     for (const config of this.configs.values()) await config.ready?.()

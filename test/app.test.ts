@@ -393,3 +393,32 @@ describe('scheduled and queue handlers', () => {
     await expect(app.queue({ ...batch, queue: 'other' }, {})).rejects.toThrow(/No onQueue/)
   })
 })
+
+describe('app commands', () => {
+  it('registers AppConfig.commands on populate', async () => {
+    const { BaseCommand, callCommand, commandRegistry, bufferIO } = await import('../src/index')
+    class Hello extends BaseCommand {
+      static help = 'Say hello'
+      async handle(args: Record<string, unknown>, io: any) {
+        io.stdout(`hello ${args.name} from ${getSettings().SITE_NAME}`)
+      }
+    }
+    class CmdConfig extends AppConfig {
+      name = 'cmds'
+      commands = { hello: Hello }
+    }
+    const cmdApp = createApp(
+      defineSettings(() => ({
+        SECRET_KEY: 'x',
+        SITE_NAME: 'CLI',
+        INSTALLED_APPS: [CmdConfig],
+        ROOT_URLCONF: [],
+      })),
+    )
+    await cmdApp.setup({})
+    expect(commandRegistry.get('hello')).toBe(Hello)
+    const io = bufferIO()
+    await callCommand('hello', { name: 'world' }, io)
+    expect(io.out).toEqual(['hello world from CLI'])
+  })
+})
