@@ -1,0 +1,83 @@
+{
+  "name": "@ghuri/core",
+  "version": "0.1.0-alpha.0",
+  "description": "Ghuri core: settings, apps, URLs, views, middleware, request context, signals, cache, commands",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ghuri contributors",
+  "homepage": "https://github.com/ghurijs/core#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ghurijs/core.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ghurijs/core/issues"
+  },
+  "keywords": [
+    "ghuri",
+    "django",
+    "cloudflare",
+    "workers",
+    "hono",
+    "drizzle",
+    "d1",
+    "r2",
+    "framework"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src test",
+    "format": "biome format --write src test"
+  },
+  "peerDependencies": {
+    "hono": "^4.13.0",
+    "@hono/node-server": "^2.1.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "tsup": "^8.5.1",
+    "vitest": "^5.1.0",
+    "@biomejs/biome": "^2.6.6",
+    "@types/node": "^24.0.0",
+    "hono": "^4.13.0",
+    "@hono/node-server": "^2.1.0",
+    "@cloudflare/workers-types": "^5.20261110.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
+  },
+  "peerDependenciesMeta": {
+    "@hono/node-server": {
+      "optional": true
+    }
+  }
+}
