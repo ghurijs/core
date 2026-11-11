@@ -173,14 +173,16 @@ export function isSecure(c: Context): boolean {
   return new URL(c.req.url).protocol === 'https:'
 }
 
-/** Request host (with port), honoring `USE_X_FORWARDED_HOST`. */
+/** Request host (with port, from the request URL), honoring `USE_X_FORWARDED_HOST`. */
 export function getHost(c: Context): string {
   const s = settingsFor(c)
   if (s?.USE_X_FORWARDED_HOST) {
     const fwd = c.req.header('x-forwarded-host')
     if (fwd) return fwd.split(',')[0].trim()
   }
-  return c.req.header('host') ?? new URL(c.req.url).host
+  // The request URL's host is derived from the Host header by Workers and @hono/node-server alike, and is
+  // what dev proxies (wrangler/Miniflare) preserve.
+  return new URL(c.req.url).host || c.req.header('host') || ''
 }
 
 function originMatches(origin: string, pattern: string): boolean {

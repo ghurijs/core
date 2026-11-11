@@ -27,7 +27,7 @@ class ItemView extends View {
 
 class Layout extends TemplateView {
   template = (p: { title: string; id: number }) => (
-    <html>
+    <html lang="en">
       <body>
         <h1>{p.title}</h1>
         <p>#{p.id}</p>
@@ -65,7 +65,10 @@ const settings = defineSettings(() => ({
     path('plain/<int:id>/', ItemView),
     path('page/<int:id>/', Layout.asView(), { name: 'page' }),
     path('go/<int:id>/', RedirectView.asView({ patternName: 'item' })),
-    path('go-url/<int:id>/', RedirectView.asView({ url: '/items/{id}/', permanent: true, queryString: true })),
+    path(
+      'go-url/<int:id>/',
+      RedirectView.asView({ url: '/items/{id}/', permanent: true, queryString: true }),
+    ),
     path('gone/', RedirectView.asView()),
     path('s/', include(shortcuts)),
   ],
@@ -113,7 +116,7 @@ describe('TemplateView / render', () => {
     const res = await client.get('/page/9/')
     expect(res.headers.get('content-type')).toMatch(/text\/html/)
     const html = await res.text()
-    expect(html.startsWith('<!DOCTYPE html><html>')).toBe(true)
+    expect(html.startsWith('<!DOCTYPE html><html lang="en">')).toBe(true)
     expect(html).toContain('<h1>&lt;Hello&gt;</h1>')
     expect(html).toContain('<p>#9</p>')
   })
@@ -122,12 +125,16 @@ describe('TemplateView / render', () => {
     const res = await client.get('/s/render/')
     expect(res.status).toBe(201)
     expect(await res.text()).toBe('<ul><li>a</li><li>b</li></ul>')
-    expect(await (await client.get('/s/render-str/')).text()).toBe('<!DOCTYPE html><html><body>x</body></html>')
+    expect(await (await client.get('/s/render-str/')).text()).toBe(
+      '<!DOCTYPE html><html><body>x</body></html>',
+    )
   })
 
   it('requires a template', async () => {
     class Empty extends TemplateView {}
-    const app = createApp(defineSettings(() => ({ SECRET_KEY: 'x', INSTALLED_APPS: [], ROOT_URLCONF: [path('', Empty)] })))
+    const app = createApp(
+      defineSettings(() => ({ SECRET_KEY: 'x', INSTALLED_APPS: [], ROOT_URLCONF: [path('', Empty)] })),
+    )
     const res = await createTestClient(app).get('/', { headers: { accept: 'application/json' } })
     expect(res.status).toBe(500)
   })

@@ -7,9 +7,9 @@ import {
   kwargs,
   NoReverseMatch,
   path,
+  Resolver404,
   registerConverter,
   rePath,
-  Resolver404,
   resolve,
   resolverMatch,
   reverse,
@@ -81,7 +81,9 @@ describe('converters', () => {
     expect(reverse('post', [7], { urlconf })).toBe('/posts/7/')
     expect(reverse('files', { p: 'a/b c.txt' }, { urlconf })).toBe('/files/a/b%20c.txt')
     expect(reverse('ym', { y: 2024, m: 1 }, { urlconf })).toBe('/d/2024-1/')
-    expect(reverse('post', { id: 1 }, { urlconf, query: { page: 2, tag: ['a', 'b'] } })).toBe('/posts/1/?page=2&tag=a&tag=b')
+    expect(reverse('post', { id: 1 }, { urlconf, query: { page: 2, tag: ['a', 'b'] } })).toBe(
+      '/posts/1/?page=2&tag=a&tag=b',
+    )
     expect(() => reverse('post', { id: 'abc' }, { urlconf })).toThrow(NoReverseMatch)
     expect(() => reverse('post', {}, { urlconf })).toThrow(NoReverseMatch)
     expect(() => reverse('post', { id: 1, extra: 2 }, { urlconf })).toThrow(NoReverseMatch)
@@ -180,7 +182,12 @@ describe('include and namespaces', () => {
 
   it('resolves', () => {
     const m = resolve('/blog/hello/', { urlconf: patterns })
-    expect(m).toMatchObject({ urlName: 'detail', namespace: 'blog', viewName: 'blog:detail', kwargs: { slug: 'hello' } })
+    expect(m).toMatchObject({
+      urlName: 'detail',
+      namespace: 'blog',
+      viewName: 'blog:detail',
+      kwargs: { slug: 'hello' },
+    })
     expect(resolve('/legacy/anything', { urlconf: patterns }).app).toBe(legacy)
     expect(() => resolve('/missing/', { urlconf: patterns })).toThrow(Resolver404)
     expect(getResolver(patterns).isValidPath('/blog')).toBe(false)

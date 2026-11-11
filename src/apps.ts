@@ -58,8 +58,7 @@ export class AppRegistry {
     if (this.installedKey !== null && !sameApps(this.installedKey, installed)) this.reset()
     this.installedKey = installed
     this.populating = this.doPopulate(installed).catch((err) => {
-      this.populating = null
-      this.installedKey = null
+      this.reset()
       throw err
     })
     return this.populating

@@ -238,7 +238,7 @@ function checkSecurity({ settings }: CheckContext): CheckMessage[] {
   if (!settings.CSRF_COOKIE_SECURE) {
     out.push(checks.warning('You have not set CSRF_COOKIE_SECURE to true.', { id: 'security.W016' }))
   }
-  if ((settings.ALLOWED_HOSTS ?? []).length === 0) {
+  if ((settings.ALLOWED_HOSTS ?? ['*']).length === 0) {
     out.push(checks.warning('ALLOWED_HOSTS must not be empty in deployment.', { id: 'security.W020' }))
   }
   return out
