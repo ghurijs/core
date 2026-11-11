@@ -1,12 +1,18 @@
 import type { MiddlewareHandler } from 'hono'
 import type { AppConfig, AppConfigClass } from './apps'
+import type { CacheConfig } from './cache'
 import { type Env, getContext } from './context'
 import { ImproperlyConfigured } from './errors'
+import type { CorsOptions, Middleware } from './middleware'
+import type { UrlPatterns } from './urls'
 
-// These types are defined in their own modules (urls.ts, middleware.ts, cache.ts) by the core build;
-// they are referenced structurally here to keep the seam module dependency-free.
-export type UrlPatternsLike = unknown[]
-export type MiddlewareLike = (new () => { handle(c: any, next: () => Promise<void>): Promise<Response | void> }) | MiddlewareHandler
+/** What `ROOT_URLCONF` accepts (see `path()` / `include()` in urls.ts). */
+export type UrlPatternsLike = UrlPatterns
+/** What `MIDDLEWARE` accepts: a Middleware class, a configured Middleware instance, or a plain Hono middleware. */
+export type MiddlewareLike =
+  | (new () => { handle(c: any, next: () => Promise<void>): Promise<Response | void> })
+  | Middleware
+  | MiddlewareHandler
 
 /**
  * Project settings. Other packages add keys with declaration merging:
@@ -25,9 +31,34 @@ export interface GhuriSettings {
   APPEND_SLASH?: boolean
   TIME_ZONE?: string
   USE_TZ?: boolean
-  CACHES?: Record<string, unknown>
+  CACHES?: Record<string, CacheConfig>
   CSRF_TRUSTED_ORIGINS?: string[]
-  CORS?: { allowOrigins: string[] | '*'; allowCredentials?: boolean } | false
+  CORS?: CorsOptions | false
+  /** Paths whose errors are always rendered as JSON (default `['/api']`). */
+  API_PATH_PREFIXES?: string[]
+  // CSRF (Django names and defaults)
+  CSRF_COOKIE_NAME?: string
+  CSRF_HEADER_NAME?: string
+  CSRF_COOKIE_AGE?: number | null
+  CSRF_COOKIE_DOMAIN?: string
+  CSRF_COOKIE_PATH?: string
+  CSRF_COOKIE_SECURE?: boolean
+  CSRF_COOKIE_HTTPONLY?: boolean
+  CSRF_COOKIE_SAMESITE?: 'Lax' | 'Strict' | 'None' | false
+  // Security (SecurityMiddleware / XFrameOptionsMiddleware / CommonMiddleware)
+  SECURE_PROXY_SSL_HEADER?: [string, string]
+  USE_X_FORWARDED_HOST?: boolean
+  SECURE_SSL_REDIRECT?: boolean
+  SECURE_SSL_HOST?: string
+  SECURE_REDIRECT_EXEMPT?: string[]
+  SECURE_HSTS_SECONDS?: number
+  SECURE_HSTS_INCLUDE_SUBDOMAINS?: boolean
+  SECURE_HSTS_PRELOAD?: boolean
+  SECURE_CONTENT_TYPE_NOSNIFF?: boolean
+  SECURE_REFERRER_POLICY?: string | string[] | false
+  SECURE_CROSS_ORIGIN_OPENER_POLICY?: string | false
+  X_FRAME_OPTIONS?: string | false
+  PREPEND_WWW?: boolean
   [key: string]: unknown
 }
 
@@ -70,10 +101,13 @@ export function isSettingsFactory(v: unknown): v is SettingsFactory {
 
 function validateSettings(s: GhuriSettings): void {
   if (!s.SECRET_KEY && !s.DEBUG) {
-    throw new ImproperlyConfigured('The SECRET_KEY setting must not be empty (set it in .dev.vars / wrangler secrets).')
+    throw new ImproperlyConfigured(
+      'The SECRET_KEY setting must not be empty (set it in .dev.vars / wrangler secrets).',
+    )
   }
   if (!Array.isArray(s.INSTALLED_APPS)) throw new ImproperlyConfigured('INSTALLED_APPS must be an array.')
-  if (!Array.isArray(s.ROOT_URLCONF)) throw new ImproperlyConfigured('ROOT_URLCONF must be an array of url patterns.')
+  if (!Array.isArray(s.ROOT_URLCONF))
+    throw new ImproperlyConfigured('ROOT_URLCONF must be an array of url patterns.')
 }
 
 /** Settings for the current request / run. */

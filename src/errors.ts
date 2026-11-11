@@ -86,3 +86,22 @@ export class ValidationError extends GhuriError {
     return out
   }
 }
+
+/** A view does not support the request method (405). `allowed` becomes the `Allow` header. */
+export class MethodNotAllowed extends HttpError {
+  override status = 405
+  constructor(
+    readonly method: string,
+    readonly allowed: string[] = [],
+    message = `Method "${method.toUpperCase()}" not allowed.`,
+  ) {
+    super(message)
+  }
+}
+
+/** The request's Host header is not in ALLOWED_HOSTS (Django: DisallowedHost). */
+export class DisallowedHost extends SuspiciousOperation {
+  constructor(message = 'Invalid HTTP_HOST header.') {
+    super(message)
+  }
+}

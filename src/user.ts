@@ -47,11 +47,20 @@ export function getUser(c?: Context): RequestUser {
   const fromHono = c?.get?.('user' as never) as RequestUser | undefined
   if (fromHono) return fromHono
   const ctx = tryGetContext()
-  const fromCtx = (ctx?.state.get(USER_KEY) as RequestUser | undefined) ?? (ctx?.hono?.get?.('user' as never) as RequestUser | undefined)
+  const fromCtx =
+    (ctx?.state.get(USER_KEY) as RequestUser | undefined) ??
+    (ctx?.hono?.get?.('user' as never) as RequestUser | undefined)
   return fromCtx ?? anonymousUser
 }
 
 export function setUser(c: Context | undefined, user: RequestUser): void {
   c?.set?.('user' as never, user as never)
   tryGetContext()?.state.set(USER_KEY, user)
+}
+
+declare module 'hono' {
+  interface ContextVariableMap {
+    user: RequestUser
+    ghuri: import('./context').GhuriContext
+  }
 }

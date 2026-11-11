@@ -1,6 +1,8 @@
 import { AppRegistryNotReady, ImproperlyConfigured } from './errors'
 
-export type CommandClassLike = new () => { handle(args: Record<string, unknown>, io: any): Promise<void | number> }
+export type CommandClassLike = new () => {
+  handle(args: Record<string, unknown>, io: any): Promise<void | number>
+}
 
 /** Django's AppConfig. Subclass it in `src/<app>/app.ts`. */
 export abstract class AppConfig {
@@ -52,8 +54,8 @@ export class AppRegistry {
 
   /** Idempotent for the same INSTALLED_APPS array. Re-populates if a different list is passed (tests). */
   populate(installed: Array<AppConfigClass | AppConfig>): Promise<void> {
-    if (this.populating && this.installedKey === installed) return this.populating
-    if (this.installedKey !== null && this.installedKey !== installed) this.reset()
+    if (this.populating && sameApps(this.installedKey, installed)) return this.populating
+    if (this.installedKey !== null && !sameApps(this.installedKey, installed)) this.reset()
     this.installedKey = installed
     this.populating = this.doPopulate(installed).catch((err) => {
       this.populating = null
@@ -129,7 +131,8 @@ export class AppRegistry {
     let model = name
     if (model === undefined) {
       const idx = appLabelOrDotted.lastIndexOf('.')
-      if (idx < 0) throw new LookupError(`Model label must be 'app_label.ModelName', got '${appLabelOrDotted}'.`)
+      if (idx < 0)
+        throw new LookupError(`Model label must be 'app_label.ModelName', got '${appLabelOrDotted}'.`)
       app = appLabelOrDotted.slice(0, idx)
       model = appLabelOrDotted.slice(idx + 1)
     }
@@ -143,6 +146,13 @@ export class AppRegistry {
 }
 
 export class LookupError extends ImproperlyConfigured {}
+
+/** Same INSTALLED_APPS (identical array, or same entries in the same order — settings resolved per env). */
+function sameApps(a: unknown, b: unknown[]): boolean {
+  if (a === b) return true
+  if (!Array.isArray(a) || a.length !== b.length) return false
+  return a.every((x, i) => x === b[i])
+}
 
 function modelName(model: unknown): string {
   const m = model as any

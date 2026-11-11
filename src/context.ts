@@ -55,6 +55,8 @@ export function getEnv(): Env {
   return getContext().env
 }
 
-export function createContext(init: Omit<GhuriContext, 'state'> & { state?: GhuriContext['state'] }): GhuriContext {
+export function createContext(
+  init: Omit<GhuriContext, 'state'> & { state?: GhuriContext['state'] },
+): GhuriContext {
   return { ...init, state: init.state ?? new Map() }
 }
