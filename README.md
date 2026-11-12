@@ -101,6 +101,8 @@ setting('PAGE_SIZE', 20) // with a fallback
 | `MIDDLEWARE` | `[]` | Middleware classes, instances, or plain Hono middleware. |
 | `ROOT_URLCONF` | — | Your URL patterns. |
 | `APPEND_SLASH` | `true` | Redirect `/x` → `/x/` when only the slashed URL exists. |
+| `HANDLER_404` | — | Custom 404 view `(c, exception) => Response` (Django's `handler404`). See [Errors](#errors). |
+| `HANDLER_500` | — | Custom 500 view `(c, exception) => Response` (Django's `handler500`). See [Errors](#errors). |
 | `CACHES` | in-memory | `{ default: kvCache('CACHE') }` |
 | `CSRF_TRUSTED_ORIGINS` | `[]` | e.g. `['https://*.example.com']` |
 | `CORS` | `false` | `{ allowOrigins: ['https://app.example.com'], allowCredentials: true }` |
@@ -268,6 +270,39 @@ Responses are JSON (`{ "detail": "…" }`) when the client accepts JSON but not 
 path is under `/api`; HTML otherwise. With `DEBUG`, 500s show a debug page with the stack trace,
 request and (masked) settings, and 404s list the URL patterns that were tried — like Django.
 Production pages never reveal details.
+
+### Custom error pages (`HANDLER_404`, `HANDLER_500`)
+
+Django's `handler404` / `handler500` are settings in Ghuri. Each is a view that gets the Hono context and
+the exception and returns a Response:
+
+```tsx
+import { defineSettings, notFoundResponse, render, wantsJson } from '@ghuri/core'
+
+export default defineSettings((env) => ({
+  // …
+  HANDLER_404: (c, exception) => {
+    if (wantsJson(c)) return notFoundResponse(c) // keep the built-in JSON 404 for API clients
+    return render(c, <NotFound tenant={c.get('tenant')} />, { status: 404 })
+  },
+  HANDLER_500: (c) => c.html('<h1>Something went wrong</h1>', 500),
+}))
+```
+
+- `HANDLER_404` is called for paths no URL pattern matches, **after** the `APPEND_SLASH` redirect and the
+  405 check for method-restricted routes (405s are never sent to it), and for `Http404` /
+  `ObjectDoesNotExist` raised by views or middleware. For unmatched paths the exception is a
+  `Resolver404`. It runs at the end of the middleware chain, inside the request context, so values set
+  by `MIDDLEWARE` (the current tenant, the user, …) are available, and middleware still sees its response.
+- `HANDLER_500` is called for uncaught exceptions — errors not mapped to a status (`PermissionDenied`,
+  `ValidationError`, `HttpError` subclasses, Hono's `HTTPException` keep their default responses).
+- Both are used for every client, HTML or JSON, like Django. Use `wantsJson(c)` and `notFoundResponse(c)`
+  (the built-in 404, which never calls `HANDLER_404`) to keep JSON errors for API clients.
+  `@ghuri/rest` views turn `Http404` into their own JSON `NotFound`, so they never reach it.
+- With `DEBUG` on, they are not called: the technical 404 / 500 pages show instead, as in Django.
+- If a handler throws (or returns something that is not a Response), the error is logged and the default
+  404 / 500 page is used. (Django renders the 500 page when `handler404` fails.)
+- Status codes are whatever the handler returns: pass `404` / `500` yourself.
 
 Packages and projects can map their own errors:
 

@@ -2,7 +2,7 @@ import type { Context } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { tryGetContext } from './context'
 import { Http404, HttpError, MethodNotAllowed, ObjectDoesNotExist, ValidationError } from './errors'
-import type { GhuriSettings } from './settings'
+import type { ErrorView, GhuriSettings } from './settings'
 import type { UrlResolver } from './urls'
 import { getResolver, Resolver404, resolverMatch } from './urls'
 
@@ -256,6 +256,32 @@ function currentResolver(settings: GhuriSettings | undefined): UrlResolver | und
   }
 }
 
+/**
+ * Run the project's `HANDLER_404` / `HANDLER_500` view, if set and `DEBUG` is off (with `DEBUG` on,
+ * Django shows its technical pages instead). Returns undefined when there is no view, or when it throws
+ * or returns something that is not a Response, so the caller renders the default page.
+ */
+async function renderErrorView(
+  name: 'HANDLER_404' | 'HANDLER_500',
+  c: Context,
+  exception: unknown,
+  settings: GhuriSettings | undefined,
+): Promise<Response | undefined> {
+  if (!hasErrorView(name, settings)) return undefined
+  try {
+    const res = await (settings![name] as ErrorView)(c, exception)
+    if (res instanceof Response) return res
+    console.error(`${name} did not return a Response; using the default error page.`)
+  } catch (err) {
+    console.error(`${name} raised an error; using the default error page:`, err)
+  }
+  return undefined
+}
+
+function hasErrorView(name: 'HANDLER_404' | 'HANDLER_500', settings: GhuriSettings | undefined): boolean {
+  return typeof settings?.[name] === 'function' && !settings?.DEBUG
+}
+
 // ---------------------------------------------------------------------------------------------
 // Main entry points
 // ---------------------------------------------------------------------------------------------
@@ -277,7 +303,10 @@ function errorBody(
   return res
 }
 
-/** Render a 404 for a path no pattern matched (DEBUG lists the URL patterns, like Django). */
+/**
+ * The built-in 404 for a path no pattern matched (DEBUG lists the URL patterns, like Django). It never
+ * calls `HANDLER_404`, so a custom handler can return it, e.g. for JSON clients.
+ */
 export function notFoundResponse(
   c: Context,
   message = 'The requested resource was not found on this server.',
@@ -302,6 +331,7 @@ export function notFoundResponse(
 /**
  * Turn any thrown value into a Response: registered handlers first, then `HttpError` subclasses,
  * `ValidationError` (400), `ObjectDoesNotExist` (404), Hono's `HTTPException`, and finally 500.
+ * With `DEBUG` off, 404s go through `HANDLER_404` and uncaught errors through `HANDLER_500` when set.
  */
 export async function handleException(err: unknown, c: Context): Promise<Response> {
   if (err instanceof Response) return err
@@ -345,6 +375,8 @@ export async function handleException(err: unknown, c: Context): Promise<Respons
         technical404(c, message, currentResolver(settings), true),
       )
     }
+    const custom = await renderErrorView('HANDLER_404', c, err, settings)
+    if (custom) return custom
     return errorBody(c, 404, { detail: err instanceof Http404 ? message : 'Not found.' }, simplePage(404, ''))
   }
   if (err instanceof MethodNotAllowed) {
@@ -364,6 +396,8 @@ export async function handleException(err: unknown, c: Context): Promise<Respons
   }
 
   console.error(err)
+  const custom = await renderErrorView('HANDLER_500', c, err, settings)
+  if (custom) return custom
   if (debug) {
     const e = err instanceof Error ? err : new Error(String(err))
     return errorBody(
@@ -391,7 +425,11 @@ export function appendSlashRedirect(c: Context, urlconf?: UrlResolver): Response
   return new Response(null, { status: 301, headers: { Location: `${path}/${url.search}` } })
 }
 
-/** Hono `notFound` handler: APPEND_SLASH, 405 for method-restricted routes, then 404. */
+/**
+ * Hono `notFound` handler: APPEND_SLASH, 405 for method-restricted routes, then 404 (the project's
+ * `HANDLER_404` when set and `DEBUG` is off). It runs at the end of the middleware chain, so the request
+ * context and values set by MIDDLEWARE are available to `HANDLER_404`.
+ */
 export function notFoundHandler(urlconf?: UrlResolver) {
   return (c: Context): Response | Promise<Response> => {
     const settings = settingsFor(c)
@@ -408,6 +446,10 @@ export function notFoundHandler(urlconf?: UrlResolver) {
         if (allowed.has('GET')) allowed.add('HEAD')
         return handleException(new MethodNotAllowed(c.req.method, [...allowed]), c)
       }
+    }
+    if (hasErrorView('HANDLER_404', settings)) {
+      const exception = new Resolver404(`No URL pattern matches '${c.req.path}'.`)
+      return renderErrorView('HANDLER_404', c, exception, settings).then((res) => res ?? notFoundResponse(c))
     }
     return notFoundResponse(c)
   }

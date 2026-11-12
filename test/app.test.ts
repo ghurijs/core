@@ -7,17 +7,21 @@ import {
   BadRequest,
   createApp,
   defineSettings,
+  type GhuriSettings,
   getContext,
   getEnv,
   getSettings,
   getUser,
   Http404,
+  ImproperlyConfigured,
   loadUser,
+  notFoundResponse,
   ObjectDoesNotExist,
   onQueue,
   onSchedule,
   PermissionDenied,
   path,
+  Resolver404,
   registerUserLoader,
   requestFinished,
   requestStarted,
@@ -26,6 +30,7 @@ import {
   taskHandlers,
   tryGetContext,
   ValidationError,
+  wantsJson,
 } from '../src/index'
 import { createTestClient } from '../src/testing'
 
@@ -320,6 +325,200 @@ describe('error handling (DEBUG)', () => {
     const html = await (await debugClient.get('/errors/404/', { headers: { accept: 'text/html' } })).text()
     expect(html).toContain('No such post')
     expect(html).toContain('Raised by')
+  })
+})
+
+describe('HANDLER_404 / HANDLER_500', () => {
+  const TENANT_KEY = Symbol('tenant')
+  const seen: Array<{ path: string; exception: unknown }> = []
+  const tenantMiddleware = async (c: Context, next: () => Promise<void>) => {
+    c.set('tenant' as never, 'acme' as never)
+    getContext().state.set(TENANT_KEY, 'acme-state')
+    await next()
+    c.res.headers.set('x-after-middleware', '1')
+  }
+  const handler404 = (c: Context, exception: Error) => {
+    seen.push({ path: c.req.path, exception })
+    return c.html(
+      `<h1>${c.get('tenant' as never)} store: page not found</h1><p>${getContext().state.get(TENANT_KEY)}|${
+        getSettings().SITE_NAME
+      }|${c.get('ghuri') === getContext()}|${exception.message}</p>`,
+      404,
+    )
+  }
+  const handler500 = (c: Context, exception: unknown) =>
+    c.html(`<h1>${c.get('tenant' as never)} store: oops</h1><p>${(exception as Error).message}</p>`, 500)
+  const custom = createTestClient(
+    createApp(
+      makeSettings(false, {
+        MIDDLEWARE: [tenantMiddleware],
+        HANDLER_404: handler404,
+        HANDLER_500: handler500,
+      }),
+    ),
+  )
+  const html = { headers: { accept: 'text/html' } }
+
+  afterEach(() => {
+    seen.length = 0
+    vi.restoreAllMocks()
+  })
+
+  it('renders for unmatched paths with status 404', async () => {
+    const res = await custom.get('/nothing/here/', html)
+    expect(res.status).toBe(404)
+    expect(await res.text()).toContain('acme store: page not found')
+    expect(seen).toHaveLength(1)
+    expect(seen[0]!.path).toBe('/nothing/here/')
+    expect(seen[0]!.exception).toBeInstanceOf(Resolver404)
+    expect(seen[0]!.exception).toBeInstanceOf(Http404)
+  })
+
+  it('renders for Http404 and ObjectDoesNotExist raised in views', async () => {
+    const res = await custom.get('/errors/404/', html)
+    expect(res.status).toBe(404)
+    const body = await res.text()
+    expect(body).toContain('acme store: page not found')
+    expect(body).toContain('No such post')
+    expect(seen[0]!.exception).toBeInstanceOf(Http404)
+    expect(seen[0]!.exception).not.toBeInstanceOf(Resolver404)
+    const dne = await custom.get('/errors/dne/', html)
+    expect(dne.status).toBe(404)
+    expect(seen[1]!.exception).toBeInstanceOf(ObjectDoesNotExist)
+  })
+
+  it('is also used for JSON clients (like Django), and can fall back to notFoundResponse()', async () => {
+    expect(await (await custom.get('/api/nothing/')).text()).toContain('page not found')
+    const negotiating = createTestClient(
+      createApp(
+        makeSettings(false, {
+          HANDLER_404: (c: Context) => (wantsJson(c) ? notFoundResponse(c) : c.html('themed', 404)),
+        }),
+      ),
+    )
+    const res = await negotiating.get('/api/nothing/')
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ detail: 'Not found.' })
+    expect(await (await negotiating.get('/nothing/', html)).text()).toBe('themed')
+  })
+
+  it('runs after the APPEND_SLASH redirect', async () => {
+    const res = await custom.get('/posts', { query: { a: 1 } })
+    expect(res.status).toBe(301)
+    expect(res.headers.get('location')).toBe('/posts/?a=1')
+    expect(seen).toHaveLength(0)
+    // POST cannot be redirected, so it is a plain 404 through the handler.
+    expect((await custom.post('/posts', html)).status).toBe(404)
+    expect(seen).toHaveLength(1)
+  })
+
+  it('leaves 405 responses alone', async () => {
+    const res = await custom.post('/only-get/', { headers: { accept: 'application/json' } })
+    expect(res.status).toBe(405)
+    expect(res.headers.get('allow')).toBe('GET, HEAD')
+    expect(await res.json()).toEqual({ detail: expect.stringContaining('POST') })
+    expect(seen).toHaveLength(0)
+  })
+
+  it('sees the request context and values set by middleware', async () => {
+    const res = await custom.get('/missing/', html)
+    const body = await res.text()
+    expect(body).toContain('acme store')
+    expect(body).toContain('acme-state|Ghuri|true|')
+    // The handler runs inside the middleware chain: middleware code after next() still sees its response.
+    expect(res.headers.get('x-after-middleware')).toBe('1')
+  })
+
+  it('falls back to the default 404 when the handler throws or returns no Response', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const throwing = createTestClient(
+      createApp(
+        makeSettings(false, {
+          HANDLER_404: () => {
+            throw new Error('template missing')
+          },
+        }),
+      ),
+    )
+    for (const url of ['/nothing/', '/errors/404/']) {
+      const res = await throwing.get(url, html)
+      expect(res.status, url).toBe(404)
+      const body = await res.text()
+      expect(body, url).toContain('404 Not Found')
+      expect(body, url).not.toContain('template missing')
+    }
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('HANDLER_404 raised'), expect.any(Error))
+
+    const asyncThrowing = createTestClient(
+      createApp(makeSettings(false, { HANDLER_404: async () => Promise.reject(new Error('nope')) })),
+    )
+    expect((await asyncThrowing.get('/nothing/', html)).status).toBe(404)
+
+    const empty = createTestClient(createApp(makeSettings(false, { HANDLER_404: (() => undefined) as any })))
+    const res = await empty.get('/nothing/', html)
+    expect(res.status).toBe(404)
+    expect(await res.text()).toContain('404 Not Found')
+  })
+
+  it('is not used with DEBUG on (the technical 404 page shows, like Django)', async () => {
+    const debug = createTestClient(createApp(makeSettings(true, { HANDLER_404: handler404 })))
+    const res = await debug.get('/nope/', html)
+    expect(res.status).toBe(404)
+    expect(await res.text()).toContain('Ghuri tried these URL patterns')
+    expect(await (await debug.get('/errors/404/', html)).text()).toContain('Raised by')
+    expect(seen).toHaveLength(0)
+  })
+
+  it('HANDLER_500 renders uncaught errors only, and falls back when it throws', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const res = await custom.get('/errors/boom/', html)
+    expect(res.status).toBe(500)
+    expect(await res.text()).toContain('acme store: oops')
+    // Errors mapped to a status keep their default responses.
+    expect(await (await custom.get('/errors/403/', html)).text()).toContain('403 Forbidden')
+    expect((await custom.get('/errors/400/', html)).status).toBe(400)
+
+    const throwing = createTestClient(
+      createApp(
+        makeSettings(false, {
+          HANDLER_500: () => {
+            throw new Error('handler broke')
+          },
+        }),
+      ),
+    )
+    const fallback = await throwing.get('/errors/boom/', html)
+    expect(fallback.status).toBe(500)
+    expect(await fallback.text()).toContain('500 Server Error')
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('HANDLER_500 raised'), expect.any(Error))
+
+    const debug = createTestClient(createApp(makeSettings(true, { HANDLER_500: handler500 })))
+    expect(await (await debug.get('/errors/boom/', html)).text()).toContain('Traceback')
+  })
+
+  it('keeps the default pages when unset', async () => {
+    const missing = await client.get('/nothing/', html)
+    expect(missing.status).toBe(404)
+    expect(await missing.text()).toContain('404 Not Found')
+    const raised = await client.get('/errors/404/', html)
+    expect(raised.status).toBe(404)
+    expect(await raised.text()).toContain('404 Not Found')
+    expect(seen).toHaveLength(0)
+  })
+
+  it('types the handlers in GhuriSettings', () => {
+    const typed: Pick<GhuriSettings, 'HANDLER_404' | 'HANDLER_500'> = {
+      HANDLER_404: (c, exception) => c.html(`<p>${exception.message}</p>`, 404),
+      HANDLER_500: async (c) => c.text('Server error', 500),
+    }
+    expect(typeof typed.HANDLER_404).toBe('function')
+  })
+
+  it('rejects handlers that are not functions', () => {
+    expect(() => makeSettings(false, { HANDLER_404: 'views.page_not_found' })({})).toThrow(
+      ImproperlyConfigured,
+    )
+    expect(() => makeSettings(false, { HANDLER_500: {} })({})).toThrow(/HANDLER_500 must be a view/)
   })
 })
 
