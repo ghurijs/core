@@ -711,6 +711,8 @@ const MATCHES = new WeakMap<object, ResolverMatch>()
 /** Marker set on views by `csrfExempt()`. */
 export const CSRF_EXEMPT_MARKER: symbol = Symbol.for('ghuri.csrfExempt')
 const CSRF_EXEMPT = CSRF_EXEMPT_MARKER
+/** Marker set on views by `xframeOptionsExempt()`. */
+export const XFRAME_OPTIONS_EXEMPT_MARKER: symbol = Symbol.for('ghuri.xframeOptionsExempt')
 
 function makeRouteHandler(route: CompiledRoute) {
   const handler = async (c: Context, next: Next): Promise<Response | void> => {
@@ -743,7 +745,10 @@ function makeRouteHandler(route: CompiledRoute) {
     }
     return res
   }
-  if ((route.view as any)?.[CSRF_EXEMPT] && route.honoPath !== null) (handler as any)[CSRF_EXEMPT] = true
+  if (route.honoPath !== null) {
+    for (const marker of [CSRF_EXEMPT, XFRAME_OPTIONS_EXEMPT_MARKER])
+      if ((route.view as any)?.[marker]) (handler as any)[marker] = true
+  }
   return handler
 }
 

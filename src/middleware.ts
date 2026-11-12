@@ -1,6 +1,7 @@
 import type { Context, MiddlewareHandler, Next } from 'hono'
 import { compress } from 'hono/compress'
 import { cors } from 'hono/cors'
+import { isXFrameOptionsExempt } from './clickjacking'
 import {
   CSRF_SAFE_METHODS,
   CsrfFailure,
@@ -145,10 +146,14 @@ export class SecurityMiddleware extends Middleware {
   }
 }
 
-/** `X-Frame-Options` header (setting `X_FRAME_OPTIONS`, default 'DENY'). Responses that set it keep theirs. */
+/**
+ * `X-Frame-Options` header (setting `X_FRAME_OPTIONS`, default 'DENY'). Responses that set it keep theirs;
+ * views wrapped in `xframeOptionsExempt()` (or class views with `static xframeOptionsExempt = true`) get none.
+ */
 export class XFrameOptionsMiddleware extends Middleware {
   async handle(c: Context, next: Next): Promise<void> {
     await next()
+    if (isXFrameOptionsExempt(c)) return
     const v = (settings(c).X_FRAME_OPTIONS as string | undefined) ?? 'DENY'
     if (v) setIfMissing(c, 'X-Frame-Options', v.toUpperCase())
   }

@@ -21,6 +21,7 @@ import {
   unmaskCsrfToken,
   View,
   XFrameOptionsMiddleware,
+  xframeOptionsExempt,
 } from '../src/index'
 import { createTestClient } from '../src/testing'
 
@@ -100,6 +101,73 @@ describe('SecurityMiddleware / XFrameOptionsMiddleware', () => {
     expect(res.headers.get('cross-origin-opener-policy')).toBe('same-origin')
     expect(res.headers.get('x-frame-options')).toBe('DENY')
     expect(res.headers.get('strict-transport-security')).toBeNull()
+  })
+
+  describe('xframeOptionsExempt', () => {
+    class EmbedView extends View {
+      static override xframeOptionsExempt = true
+      async get(c: Context) {
+        return c.text('embed')
+      }
+    }
+    class PlainView extends View {
+      async get(c: Context) {
+        return c.text('plain')
+      }
+    }
+    const embedHono = new Hono()
+    embedHono.get('/page', (c) => c.text('mounted'))
+    const plainHono = new Hono()
+    plainHono.get('/page', (c) => c.text('mounted'))
+    const routes = [
+      path('', (c) => c.text('ok')),
+      path(
+        'exempt/',
+        xframeOptionsExempt((c: Context) => c.text('exempt')),
+      ),
+      path(
+        'own-header/',
+        xframeOptionsExempt((c: Context) => {
+          c.header('X-Frame-Options', 'SAMEORIGIN')
+          return c.text('own')
+        }),
+      ),
+      path('sets-header/', (c: Context) => {
+        c.header('X-Frame-Options', 'SAMEORIGIN')
+        return c.text('own')
+      }),
+      path('embed/<int:id>/', EmbedView.asView()),
+      path('embed-class/', EmbedView),
+      path('plain-class/', PlainView),
+      path('mounted/', xframeOptionsExempt(embedHono)),
+      path('plain-mounted/', plainHono),
+    ]
+    const client = createTestClient(app({ MIDDLEWARE: [XFrameOptionsMiddleware] }, routes))
+
+    it('keeps DENY on views that are not exempt', async () => {
+      for (const url of ['/', '/plain-class/', '/plain-mounted/page']) {
+        const res = await client.get(url)
+        expect(res.status).toBe(200)
+        expect(res.headers.get('x-frame-options')).toBe('DENY')
+      }
+    })
+
+    it('sends no header for exempt function views, class views and mounted apps', async () => {
+      for (const url of ['/exempt/', '/embed/1/', '/embed-class/', '/mounted/page']) {
+        const res = await client.get(url)
+        expect(res.status).toBe(200)
+        expect(res.headers.get('x-frame-options')).toBeNull()
+      }
+    })
+
+    it("respects a view's own X-Frame-Options, exempt or not", async () => {
+      expect((await client.get('/own-header/')).headers.get('x-frame-options')).toBe('SAMEORIGIN')
+      expect((await client.get('/sets-header/')).headers.get('x-frame-options')).toBe('SAMEORIGIN')
+    })
+
+    it('still applies to responses that no view produced', async () => {
+      expect((await client.get('/missing/')).headers.get('x-frame-options')).toBe('DENY')
+    })
   })
 
   it('sends HSTS only over https', async () => {

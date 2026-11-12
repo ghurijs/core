@@ -344,7 +344,8 @@ Built-ins:
 - **`CsrfMiddleware`** — Django's CSRF protection: unsafe requests must send the `csrftoken` cookie's
   token in the `X-CSRFToken` header or the `csrfmiddlewaretoken` form field; `Origin` (and on https
   `Referer`) must match the host or `CSRF_TRUSTED_ORIGINS`. Tokens are Django-compatible (masked).
-- **`XFrameOptionsMiddleware`** — `X-Frame-Options: DENY` (setting `X_FRAME_OPTIONS`).
+- **`XFrameOptionsMiddleware`** — `X-Frame-Options: DENY` (setting `X_FRAME_OPTIONS`). Exempt one view
+  with `xframeOptionsExempt(view)` or `static xframeOptionsExempt = true`; a header the view sets is kept.
 - **`GZipMiddleware`** — compression on Node; a no-op on Workers (Cloudflare compresses at the edge).
 
 CSRF helpers:
@@ -353,6 +354,14 @@ CSRF helpers:
 <input type="hidden" name="csrfmiddlewaretoken" value={getCsrfToken(c)} />
 
 path('webhooks/stripe/', csrfExempt(stripeWebhook))   // also works on mounted Hono apps
+path('embed/', xframeOptionsExempt(embedView))        // let other pages frame this view
+```
+
+Client address (Django's `REMOTE_ADDR`): `getRemoteAddr(c)` returns `CF-Connecting-IP` on Cloudflare and the socket
+address on Node (`serve()` records it; custom servers call `setRemoteAddr(request, addr)`). It never reads
+`X-Forwarded-For`.
+
+```ts
 path('spa/', ensureCsrfCookie(spaShell))              // always set the cookie
 rotateCsrfToken(c)                                    // e.g. after login
 await enforceCsrf(c)                                  // manual check (REST session auth)

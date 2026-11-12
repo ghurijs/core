@@ -2,7 +2,14 @@ import type { Context, HonoRequest } from 'hono'
 import { jsx } from 'hono/jsx'
 import { ImproperlyConfigured, MethodNotAllowed } from './errors'
 import { handleException } from './exceptions'
-import { CSRF_EXEMPT_MARKER, kwargs as getKwargs, NoReverseMatch, reverse, type ViewFunction } from './urls'
+import {
+  CSRF_EXEMPT_MARKER,
+  kwargs as getKwargs,
+  NoReverseMatch,
+  reverse,
+  type ViewFunction,
+  XFRAME_OPTIONS_EXEMPT_MARKER,
+} from './urls'
 
 export type { ViewFunction } from './urls'
 
@@ -41,6 +48,8 @@ export abstract class View {
   ]
   /** Mark every view produced by `asView()` as CSRF exempt. */
   static csrfExempt = false
+  /** Mark every view produced by `asView()` as exempt from `XFrameOptionsMiddleware`. */
+  static xframeOptionsExempt = false
 
   /** The Hono context of the current request. */
   c!: Context
@@ -62,6 +71,7 @@ export abstract class View {
     const cls = this as unknown as (new () => V) & {
       httpMethodNames: HttpMethodName[]
       csrfExempt?: boolean
+      xframeOptionsExempt?: boolean
       name: string
     }
     for (const key of Object.keys(initkwargs)) {
@@ -81,6 +91,7 @@ export abstract class View {
     view.viewInitkwargs = initkwargs
     Object.defineProperty(view, 'name', { value: cls.name })
     if (cls.csrfExempt) (view as any)[CSRF_EXEMPT_MARKER] = true
+    if (cls.xframeOptionsExempt) (view as any)[XFRAME_OPTIONS_EXEMPT_MARKER] = true
     return view
   }
 
