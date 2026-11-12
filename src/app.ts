@@ -36,6 +36,16 @@ export interface GhuriApp {
   queue(batch: MessageBatchLike, env?: Env, ctx?: ExecutionContextLike): Promise<void>
   /** Populate apps without a request and install a global context (CLI, scripts, tests). */
   setup(env?: Env): Promise<GhuriContext>
+  /**
+   * Run `fn` inside a fresh Ghuri context (apps populated, settings resolved), like a request without
+   * HTTP. Used for work that does not arrive through `fetch`: Durable Object events, WebSocket messages,
+   * scripts. Unlike `setup()`, it installs no global context.
+   */
+  run<T>(
+    env: Env | undefined,
+    ctx: ExecutionContextLike | undefined,
+    fn: (ctx: GhuriContext) => Promise<T>,
+  ): Promise<T>
   /** The built Hono router (for testing / composition). Requests through it still get a Ghuri context. */
   hono(env?: Env): Promise<Hono>
 }
@@ -226,6 +236,10 @@ export function createApp(
       const ctx = createContext({ env: e, settings })
       setGlobalContext(ctx)
       return ctx
+    },
+
+    run(env, ctx, fn) {
+      return withTaskContext(env, ctx, fn)
     },
 
     async hono(env) {

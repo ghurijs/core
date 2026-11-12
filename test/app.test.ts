@@ -12,11 +12,13 @@ import {
   getSettings,
   getUser,
   Http404,
+  loadUser,
   ObjectDoesNotExist,
   onQueue,
   onSchedule,
   PermissionDenied,
   path,
+  registerUserLoader,
   requestFinished,
   requestStarted,
   reverse,
@@ -154,6 +156,19 @@ describe('createApp', () => {
     expect(await (await client.get('/user/')).json()).toEqual({ pk: 1, viaHono: 1 })
   })
 
+  it('loads users by pk through the registered loader', async () => {
+    expect(await loadUser(1)).toBeNull()
+    const user = { pk: 7, isAuthenticated: true, isAnonymous: false, hasPerm: async () => true }
+    registerUserLoader(async (pk) => (pk === 7 ? user : null))
+    try {
+      expect(await loadUser(7)).toBe(user)
+      expect(await loadUser(8)).toBeNull()
+      expect(await loadUser(null)).toBeNull()
+    } finally {
+      registerUserLoader(undefined)
+    }
+  })
+
   it('sends request signals', async () => {
     const seen: string[] = []
     const started = ({ request }: { request: Request }) => {
@@ -205,6 +220,22 @@ describe('createApp', () => {
     const hono = await app.hono({ SITE: 'Direct' })
     const res = await hono.request('/ctx/2/')
     expect((await res.json()).setting).toBe('Direct')
+  })
+
+  it('runs work outside requests in a fresh context with run()', async () => {
+    const waited: Promise<unknown>[] = []
+    const execCtx = { waitUntil: (p: Promise<unknown>) => void waited.push(p) }
+    const seen = await app.run({ SITE: 'Room' }, execCtx, async (ctx) => {
+      expect(getContext()).toBe(ctx)
+      expect(ctx.executionCtx).toBe(execCtx)
+      return getSettings().SITE_NAME
+    })
+    expect(seen).toBe('Room')
+    const [a, b] = await Promise.all([
+      app.run({ SITE: 'A' }, undefined, async (ctx) => ctx.state),
+      app.run({ SITE: 'B' }, undefined, async (ctx) => ctx.state),
+    ])
+    expect(a).not.toBe(b)
   })
 })
 

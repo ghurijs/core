@@ -58,6 +58,25 @@ export function setUser(c: Context | undefined, user: RequestUser): void {
   tryGetContext()?.state.set(USER_KEY, user)
 }
 
+export type UserLoader = (pk: unknown) => Promise<RequestUser | null>
+
+const LOADER_KEY = Symbol.for('ghuri.core.userLoader')
+
+/**
+ * Register how to load a user by primary key. `@ghuri/auth` registers one in `ready()`, so packages that
+ * only keep a user's pk (WebSocket consumers, background jobs) can load it without importing auth.
+ */
+export function registerUserLoader(loader: UserLoader | undefined): void {
+  ;(globalThis as any)[LOADER_KEY] = loader
+}
+
+/** Load a user by pk with the registered loader. Returns null when no loader is registered or no user matches. */
+export async function loadUser(pk: unknown): Promise<RequestUser | null> {
+  const loader = (globalThis as any)[LOADER_KEY] as UserLoader | undefined
+  if (!loader || pk === null || pk === undefined) return null
+  return loader(pk)
+}
+
 declare module 'hono' {
   interface ContextVariableMap {
     user: RequestUser

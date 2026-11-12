@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `app.run(env, executionCtx, fn)`: run work that does not arrive through `fetch` (Durable Object events,
+  WebSocket messages, scripts) in a fresh Ghuri context with apps populated, like `scheduled`/`queue` do.
+  Unlike `setup()` it installs no global context. Used by `@ghuri/realtime`.
+- `registerUserLoader(fn)` / `loadUser(pk)`: load a user by primary key without importing `@ghuri/auth`
+  (which registers the loader). Used by WebSocket consumers that only keep the user's pk.
+
 ## 0.1.0-alpha.0
 
 - Settings (`defineSettings`, `getSettings`, `setting`), app registry (`AppConfig`, `apps`), request
