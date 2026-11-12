@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.3
 
 - `xframeOptionsExempt(view)` (Django's `xframe_options_exempt`) and `static xframeOptionsExempt = true`
   on class views: `XFrameOptionsMiddleware` adds no `X-Frame-Options` header to that view's responses, so
