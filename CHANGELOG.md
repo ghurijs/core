@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.1
 
 - `app.run(env, executionCtx, fn)`: run work that does not arrive through `fetch` (Durable Object events,
   WebSocket messages, scripts) in a fresh Ghuri context with apps populated, like `scheduled`/`queue` do.

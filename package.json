@@ -1,6 +1,6 @@
 {
   "name": "@ghuri/core",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "Ghuri core: settings, apps, URLs, views, middleware, request context, signals, cache, commands",
   "type": "module",
   "license": "MIT",
