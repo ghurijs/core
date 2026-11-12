@@ -1,5 +1,6 @@
 // @ghuri/core/node — run a Ghuri app on Node.js (VPS, containers, local dev without wrangler).
 import type { Env, ExecutionContextLike } from './context'
+import { setRemoteAddr } from './remote'
 
 /** Anything with a Workers-style `fetch(request, env, ctx)` — a GhuriApp or a Hono app. */
 export interface FetchApp {
@@ -56,7 +57,12 @@ export async function serve(app: FetchApp, opts: ServeOptions = {}) {
   const execution = createExecutionContext()
   const server = nodeServe(
     {
-      fetch: (request: Request) => app.fetch(request, env, execution),
+      fetch: (request: Request, bindings?: any) => {
+        // env stays the settings env; the socket address is exposed through getRemoteAddr(c)
+        const addr = bindings?.incoming?.socket?.remoteAddress
+        if (typeof addr === 'string' && addr) setRemoteAddr(request, addr)
+        return app.fetch(request, env, execution)
+      },
       port,
       hostname,
     },

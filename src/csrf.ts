@@ -1,10 +1,10 @@
 import type { Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
-import { matchedRoutes } from 'hono/route'
 import { PermissionDenied } from './errors'
 import { settingsFor } from './exceptions'
+import { viewHasMarker } from './markers'
 import type { GhuriSettings } from './settings'
-import { CSRF_EXEMPT_MARKER, getResolver, type ViewFunction } from './urls'
+import { CSRF_EXEMPT_MARKER, type ViewFunction } from './urls'
 
 // Django-compatible token format: a 32-char secret stored in the cookie, 64-char masked tokens in forms.
 const CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
@@ -146,20 +146,7 @@ export function ensureCsrfCookie(view: ViewFunction): ViewFunction {
 
 /** Is the request's view exempt from CSRF checks? */
 export function isCsrfExempt(c: Context): boolean {
-  try {
-    for (const r of matchedRoutes(c)) if ((r.handler as any)?.[CSRF_EXEMPT_MARKER]) return true
-  } catch {
-    // no route information
-  }
-  const settings = settingsFor(c)
-  if (!settings) return false
-  try {
-    const m = getResolver(settings.ROOT_URLCONF as any).match(c.req.path, c.req.method)
-    if (!m) return false
-    return !!((m.view as any)?.[CSRF_EXEMPT_MARKER] || (m.app as any)?.[CSRF_EXEMPT_MARKER])
-  } catch {
-    return false
-  }
+  return viewHasMarker(c, CSRF_EXEMPT_MARKER)
 }
 
 /** `https` request? Honors `SECURE_PROXY_SSL_HEADER = ['X-Forwarded-Proto', 'https']`. */

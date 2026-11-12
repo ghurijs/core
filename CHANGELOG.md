@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- `xframeOptionsExempt(view)` (Django's `xframe_options_exempt`) and `static xframeOptionsExempt = true`
+  on class views: `XFrameOptionsMiddleware` adds no `X-Frame-Options` header to that view's responses, so
+  it can be framed (e.g. a preview inside a dashboard). Works on function views, `asView()` views and
+  mounted Hono apps, like `csrfExempt`. A header the view sets itself is still kept, exempt or not.
+  `isXFrameOptionsExempt(c)` and `XFRAME_OPTIONS_EXEMPT_MARKER` are exported for other packages.
+- `getRemoteAddr(c)` (Django's `REMOTE_ADDR`): the client address from sources a client cannot forge —
+  `CF-Connecting-IP` on Cloudflare, else the socket address on Node, else `''`. `serve()` from `@ghuri/core/node`
+  now records each request's socket address (`env` is unchanged); custom servers (Bun, Deno) can call
+  `setRemoteAddr(request, addr)` before `app.fetch()`. `X-Forwarded-For` is not read: behind a reverse proxy this is
+  the proxy's address. Also exported: `isCloudflareRequest(c)`.
+
 ## 0.1.0-alpha.2
 
 - `HANDLER_404` and `HANDLER_500` settings (Django's `handler404` / `handler500`): custom error views

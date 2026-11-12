@@ -1,6 +1,6 @@
 import type { AddressInfo } from 'node:net'
 import { describe, expect, it } from 'vitest'
-import { createApp, defineSettings, getContext, getEnv, path } from '../src/index'
+import { createApp, defineSettings, getContext, getEnv, getRemoteAddr, path } from '../src/index'
 import { createExecutionContext, serve } from '../src/node'
 
 describe('@ghuri/core/node', () => {
@@ -34,6 +34,34 @@ describe('@ghuri/core/node', () => {
     expect((await fetch(`http://127.0.0.1:${port}/missing/`)).status).toBe(404)
     await new Promise((r) => setTimeout(r, 5))
     expect(background).toBe(true)
+    await new Promise((r) => server.close(r))
+  })
+
+  it('exposes the socket address through getRemoteAddr(c), not client headers', async () => {
+    const app = createApp(
+      defineSettings(() => ({
+        SECRET_KEY: 'x',
+        INSTALLED_APPS: [],
+        ROOT_URLCONF: [path('', (c) => c.json({ addr: getRemoteAddr(c), env: Object.keys(c.env ?? {}) }))],
+      })),
+    )
+    let listening: (v: unknown) => void
+    const ready = new Promise((r) => (listening = r))
+    const server = await serve(app, {
+      port: 0,
+      hostname: '127.0.0.1',
+      env: { GREETING: 'hello' },
+      handleSignals: false,
+      onListen: (i) => listening(i),
+    })
+    await ready
+    const { port } = server.address() as AddressInfo
+    const res = await fetch(`http://127.0.0.1:${port}/`, {
+      headers: { 'x-forwarded-for': '6.6.6.6', 'cf-connecting-ip': '8.8.8.8' },
+    })
+    const body = await res.json()
+    expect(body.addr).toMatch(/^(::ffff:)?127\.0\.0\.1$/)
+    expect(body.env).toEqual(['GREETING'])
     await new Promise((r) => server.close(r))
   })
 
