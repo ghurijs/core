@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- `HANDLER_404` and `HANDLER_500` settings (Django's `handler404` / `handler500`): custom error views
+  `(c, exception) => Response`. `HANDLER_404` renders unmatched paths, after the `APPEND_SLASH` redirect
+  and the 405 check, and `Http404` / `ObjectDoesNotExist` raised by views; `HANDLER_500` renders uncaught
+  exceptions. Both run inside the request context after `MIDDLEWARE`, are skipped with `DEBUG` on (the
+  technical pages show, like Django), and fall back to the default page if they throw. Projects no longer
+  need a catch-all `<path:rest>` route (which disabled `APPEND_SLASH` and 405s) for a custom 404 page.
+  Non-function values raise `ImproperlyConfigured`.
+
 ## 0.1.0-alpha.1
 
 - `app.run(env, executionCtx, fn)`: run work that does not arrive through `fetch` (Durable Object events,

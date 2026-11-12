@@ -1,8 +1,8 @@
-import type { MiddlewareHandler } from 'hono'
+import type { Context, MiddlewareHandler } from 'hono'
 import type { AppConfig, AppConfigClass } from './apps'
 import type { CacheConfig } from './cache'
 import { type Env, getContext } from './context'
-import { ImproperlyConfigured } from './errors'
+import { type Http404, ImproperlyConfigured, type ObjectDoesNotExist } from './errors'
 import type { CorsOptions, Middleware } from './middleware'
 import type { UrlPatterns } from './urls'
 
@@ -13,6 +13,12 @@ export type MiddlewareLike =
   | (new () => { handle(c: any, next: () => Promise<void>): Promise<Response | void> })
   | Middleware
   | MiddlewareHandler
+
+/**
+ * A custom error view (Django's `handler404` / `handler500`): receives the request context and the
+ * exception, returns the response.
+ */
+export type ErrorView<E = unknown> = (c: Context<any, any, any>, exception: E) => Response | Promise<Response>
 
 /**
  * Project settings. Other packages add keys with declaration merging:
@@ -29,6 +35,17 @@ export interface GhuriSettings {
   MIDDLEWARE?: MiddlewareLike[]
   ROOT_URLCONF: UrlPatternsLike
   APPEND_SLASH?: boolean
+  /**
+   * Custom 404 view (Django's `handler404`). Called with `DEBUG` off for unmatched paths (after the
+   * `APPEND_SLASH` redirect and 405 checks) and for `Http404` / `ObjectDoesNotExist` raised by views
+   * or middleware. If it throws, the default 404 page is used.
+   */
+  HANDLER_404?: ErrorView<Http404 | ObjectDoesNotExist>
+  /**
+   * Custom 500 view (Django's `handler500`). Called with `DEBUG` off for uncaught exceptions (errors
+   * not mapped to an HTTP status). If it throws, the default 500 page is used.
+   */
+  HANDLER_500?: ErrorView<unknown>
   TIME_ZONE?: string
   USE_TZ?: boolean
   CACHES?: Record<string, CacheConfig>
@@ -108,6 +125,11 @@ function validateSettings(s: GhuriSettings): void {
   if (!Array.isArray(s.INSTALLED_APPS)) throw new ImproperlyConfigured('INSTALLED_APPS must be an array.')
   if (!Array.isArray(s.ROOT_URLCONF))
     throw new ImproperlyConfigured('ROOT_URLCONF must be an array of url patterns.')
+  for (const key of ['HANDLER_404', 'HANDLER_500'] as const) {
+    if (s[key] !== undefined && s[key] !== null && typeof s[key] !== 'function') {
+      throw new ImproperlyConfigured(`${key} must be a view function (c, exception) => Response.`)
+    }
+  }
 }
 
 /** Settings for the current request / run. */
