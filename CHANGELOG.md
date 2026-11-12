@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.2
 
 - `HANDLER_404` and `HANDLER_500` settings (Django's `handler404` / `handler500`): custom error views
   `(c, exception) => Response`. `HANDLER_404` renders unmatched paths, after the `APPEND_SLASH` redirect
