@@ -3,6 +3,7 @@
 export * from './app'
 export * from './apps'
 export * from './cache'
+export * from './carriers'
 export * from './checks'
 export * from './clickjacking'
 export * from './commands'

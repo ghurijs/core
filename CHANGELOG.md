@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Context carriers: `registerContextCarrier({ name, capture, restore })`, `captureContext()` and
+  `restoreContext(captured, fn)` take request-scoped state (such as the current tenant) across a queue or service
+  boundary. `captureContext()` returns a JSON-safe `{ name: value }` object; `restoreContext()` runs `fn` with every
+  known value active again and ignores unknown keys and a missing object. Also `unregisterContextCarrier()` and
+  `getContextCarriers()`. Nothing is registered by core itself.
+
 ## 0.1.0-alpha.3
 
 - `xframeOptionsExempt(view)` (Django's `xframe_options_exempt`) and `static xframeOptionsExempt = true`

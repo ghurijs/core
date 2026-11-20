@@ -443,6 +443,17 @@ class BlogConfig extends AppConfig {
 }
 ```
 
+Work that leaves the request can take request-scoped state along with context carriers:
+`captureContext()` returns `{ name: value }` from every registered carrier (`@ghuri/tenants` registers `tenant`),
+and `restoreContext(captured, fn)` runs `fn` with those values active again. Register your own with
+`registerContextCarrier({ name, capture, restore })`.
+
+```ts
+await env.EMAILS.send({ postId, context: captureContext() })
+// consumer
+await restoreContext(msg.body.context, () => sendEmail(msg.body))
+```
+
 ## Management commands
 
 ```ts
