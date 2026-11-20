@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.4
 
 - Context carriers: `registerContextCarrier({ name, capture, restore })`, `captureContext()` and
   `restoreContext(captured, fn)` take request-scoped state (such as the current tenant) across a queue or service
