@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.5
 
 - `parseCron(expr)` / `isValidCron(expr)`: cron expressions with Cloudflare Cron Triggers semantics (UTC, day of
   week 1-7 with 1 = Sunday, names, `L`, `W`, `#`), with `matches(date)` and `next(after)`.
