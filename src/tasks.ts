@@ -63,6 +63,10 @@ export const taskHandlers = {
   schedulesFor(cron: string): ScheduledHandler[] {
     return registry.schedules.filter((e) => e.cron === cron || e.cron === '*').map((e) => e.handler)
   },
+  /** Every cron expression registered with `onSchedule()` (without `'*'`), in registration order. */
+  crons(): string[] {
+    return [...new Set(registry.schedules.map((e) => e.cron).filter((c) => c !== '*'))]
+  },
   queuesFor(queue: string): QueueHandler[] {
     return registry.queues.filter((e) => e.queue === queue || e.queue === '*').map((e) => e.handler)
   },

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- `parseCron(expr)` / `isValidCron(expr)`: cron expressions with Cloudflare Cron Triggers semantics (UTC, day of
+  week 1-7 with 1 = Sunday, names, `L`, `W`, `#`), with `matches(date)` and `next(after)`.
+- `startScheduler(app, opts)` in `@ghuri/core/node` fires an app's Cron Triggers on Node (every cron registered with
+  `onSchedule()`, or `opts.crons`), and `serve(app, { scheduler: true })` starts it with the server. Run it in one
+  process only.
+- `taskHandlers.crons()` lists the crons registered with `onSchedule()`.
+- `AppConfig.tasks` (`import * as tasks from './tasks'`) for `@ghuri/tasks`.
+
 ## 0.1.0-alpha.4
 
 - Context carriers: `registerContextCarrier({ name, capture, restore })`, `captureContext()` and
