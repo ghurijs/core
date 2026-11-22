@@ -18,6 +18,8 @@ export abstract class AppConfig {
   migrations?: Record<string, unknown>
   /** `import * as admin from './admin'` — importing the module registers ModelAdmins. */
   admin?: unknown
+  /** `import * as tasks from './tasks'` — background tasks (`@ghuri/tasks`), named `<app label>.<export name>`. */
+  tasks?: Record<string, unknown>
   /** Agents, signals or any other module the app wants loaded at startup. */
   modules?: Record<string, unknown>
   commands?: Record<string, CommandClassLike>
